@@ -32,6 +32,8 @@ if __name__ == '__main__':
     sys.path.insert(0, os.path.join(file_path, '../'))
 
 from shadowsocks import common, lru_cache, eventloop, shell
+from configloader import load_config, get_config
+
 
 CACHE_SWEEP_INTERVAL = 30
 
