@@ -31,6 +31,7 @@ if __name__ == '__main__':
     sys.path.insert(0, os.path.join(file_path, '../'))
 
 from shadowsocks import common, lru_cache, eventloop, shell
+from configloader import load_config, get_config
 
 
 CACHE_SWEEP_INTERVAL = 30
@@ -423,7 +424,8 @@ class DNSResolver(object):
             self._loop.add(self._sock, eventloop.POLL_IN, self)
         else:
             data, addr = sock.recvfrom(1024)
-            if addr not in self._servers:
+            unlock_dns = [get_config().NETFLIX_DNS, get_config().HBO_DNS, get_config().BBC_DNS, get_config().HULU_DNS]
+            if addr not in self._servers and addr[0] not in unlock_dns:
                 logging.warn('received a packet other than our dns')
                 return
             self._handle_data(data)
@@ -445,10 +447,28 @@ class DNSResolver(object):
 
     def _send_req(self, hostname, qtype):
         req = build_request(hostname, qtype)
+        netflix_dns = get_config().NETFLIX_DNS
+        hbo_dns = get_config().HBO_DNS
+        hulu_dns = get_config().HULU_DNS
+        bbc_dns = get_config().BBC_DNS
         for server in self._servers:
             logging.debug('resolving %s with type %d using server %s',
                           hostname, qtype, server)
-            self._sock.sendto(req, server)
+            use_default_dns = True
+            if netflix_dns != 'empty' and ("netflix" in str(hostname) or "nflx" in str(hostname)):
+                self._sock.sendto(req, (netflix_dns, 53))
+                use_default_dns = False
+            if hbo_dns != 'empty' and ("hbo" in str(hostname) or "execute-api.ap-southeast-1.amazonaws.com" == str(hostname)):
+                self._sock.sendto(req, (hbo_dns, 53))
+                use_default_dns = False
+            if hulu_dns != 'empty' and ("hulu" in str(hostname) or "happyon.jp" == str(hostname)):
+                self._sock.sendto(req, (hulu_dns, 53))
+                use_default_dns = False
+            if bbc_dns != 'empty' and ("bbc" in str(hostname) or "co.uk" in str(hostname) or "uk-live" in str(hostname)):
+                self._sock.sendto(req, (bbc_dns, 53))
+                use_default_dns = False
+            if use_default_dns:
+                self._sock.sendto(req, server)
 
     def resolve(self, hostname, callback):
         if type(hostname) != bytes:
